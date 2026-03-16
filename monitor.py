@@ -35,6 +35,10 @@ class Config:
     disk_alert: float
     feishu_webhook_url: str
     log_file: str
+    server_name: str
+    cpu_sustained: int
+    mem_sustained: int
+    disk_sustained: int
 
 
 def _get_float(key: str, default: float) -> float:
@@ -63,6 +67,10 @@ def load_config() -> Config:
         disk_alert=_get_float("DISK_ALERT", 95),
         feishu_webhook_url=os.environ.get("FEISHU_WEBHOOK_URL", "").strip(),
         log_file=os.environ.get("LOG_FILE", "monitor.log").strip(),
+        server_name=os.environ.get("SERVER_NAME", socket.gethostname()).strip(),
+        cpu_sustained=int(os.environ.get("CPU_SUSTAINED", 6)),
+        mem_sustained=int(os.environ.get("MEM_SUSTAINED", 6)),
+        disk_sustained=int(os.environ.get("DISK_SUSTAINED", 1)),
     )
 
     # 校验阈值顺序
@@ -248,11 +256,15 @@ def main() -> None:
     cfg = load_config()
     setup_logging(cfg.log_file)
 
-    hostname = socket.gethostname()
+    hostname = cfg.server_name
     logging.info(f"监控启动 | 主机：{hostname} | 轮询间隔：{cfg.poll_interval}s | 日志：{cfg.log_file}")
 
     # 告警去重状态：False = 正常，True = 告警中（已推送，等待恢复）
     alert_state: dict[str, bool] = {"cpu": False, "memory": False, "disk": False}
+
+    # 持续超阈值计数器（次数从 .env 读取，次数 × 轮询间隔 = 持续秒数）
+    alert_counter: dict[str, int] = {"cpu": 0, "memory": 0, "disk": 0}
+    SUSTAINED_THRESHOLD = {"cpu": cfg.cpu_sustained, "memory": cfg.mem_sustained, "disk": cfg.disk_sustained}
 
     # 每个指标的阈值配置
     thresholds = {
@@ -276,14 +288,21 @@ def main() -> None:
 
                 # 告警状态机
                 is_critical = level == LEVEL_CRITICAL
-                if is_critical and not alert_state[metric]:
-                    # 上升沿：首次超告警阈值，推送飞书
-                    alert_state[metric] = True
-                    push_feishu(cfg.feishu_webhook_url, metric, value, alert, hostname)
-                elif not is_critical and alert_state[metric]:
-                    # 下降沿：指标恢复，重置状态
-                    alert_state[metric] = False
-                    logging.info(f"{_METRIC_NAMES[metric]} 已恢复至告警阈值以下（当前 {value:.1f}%）")
+                if is_critical:
+                    if not alert_state[metric]:
+                        alert_counter[metric] += 1
+                        if alert_counter[metric] >= SUSTAINED_THRESHOLD[metric]:
+                            # 持续超阈值达标，推送飞书
+                            alert_state[metric] = True
+                            alert_counter[metric] = 0
+                            push_feishu(cfg.feishu_webhook_url, metric, value, alert, hostname)
+                else:
+                    # 指标恢复，重置计数器和状态
+                    if alert_counter[metric] > 0:
+                        alert_counter[metric] = 0
+                    if alert_state[metric]:
+                        alert_state[metric] = False
+                        logging.info(f"{_METRIC_NAMES[metric]} 已恢复至告警阈值以下（当前 {value:.1f}%）")
 
             # 补偿 cpu_percent 已耗用的 1 秒
             remaining = cfg.poll_interval - 1
