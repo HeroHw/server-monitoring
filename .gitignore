@@ -1,0 +1,5 @@
+.env
+monitor.log
+monitor.log.*
+__pycache__/
+*.pyc
