@@ -10,7 +10,7 @@ import os
 import socket
 import time
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from logging.handlers import RotatingFileHandler
 
 import psutil
@@ -194,7 +194,7 @@ def push_feishu(webhook_url: str, metric: str, value: float,
         return
 
     name = _METRIC_NAMES[metric]
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    now = datetime.now(tz=timezone(timedelta(hours=8))).strftime("%Y-%m-%d %H:%M:%S")
 
     payload = {
         "msg_type": "interactive",
