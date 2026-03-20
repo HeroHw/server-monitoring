@@ -63,12 +63,6 @@ if [ -f "$HOME/.zshrc" ]; then
     info "已初始化 zsh"
 fi
 
-# -------- 配置国内镜像源（可选） --------
-info "配置清华镜像源..."
-"$CONDA_DIR/bin/conda" config --add channels https://mirrors.tuna.tsinghua.edu.cn/anaconda/pkgs/main/
-"$CONDA_DIR/bin/conda" config --add channels https://mirrors.tuna.tsinghua.edu.cn/anaconda/pkgs/free/
-"$CONDA_DIR/bin/conda" config --add channels https://mirrors.tuna.tsinghua.edu.cn/anaconda/cloud/conda-forge/
-"$CONDA_DIR/bin/conda" config --set show_channel_urls yes
 
 # -------- 完成 --------
 info "=========================================="
