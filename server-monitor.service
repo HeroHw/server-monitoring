@@ -1,0 +1,14 @@
+[Unit]
+Description=Server Resource Monitor
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/server-monitoring
+ExecStart=/root/miniconda3/envs/monitor/bin/python monitor.py
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
